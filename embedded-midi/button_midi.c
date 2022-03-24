@@ -15,6 +15,7 @@ enum  {
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 const uint LED_PIN = PICO_DEFAULT_LED_PIN;
 const uint BUTTON_PIN = 15;
+bool should_sound = false;
 
 void led_blinking_task();
 void midi_task();
@@ -36,6 +37,7 @@ int main() {
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
+    midi_task();
   }
 }
 
@@ -44,7 +46,7 @@ int main() {
 //
 
 void button_interrupt(uint gpio, uint32_t events) {
-  midi_task();
+  should_sound = true;
 }
 
 
@@ -83,8 +85,13 @@ void tud_resume_cb(void)
 // MIDI Task
 //--------------------------------------------------------------------+
 
-void midi_task(void)
+void midi_task()
 {
+
+  if(!should_sound) {
+    return;
+  }
+  should_sound = false;
 
   static uint32_t start_ms = 0;
 
@@ -97,9 +104,6 @@ void midi_task(void)
   uint8_t packet[4];
   while ( tud_midi_available() ) tud_midi_packet_read(packet);
 
-  // send note periodically
-  if (board_millis() - start_ms < 286) return; // not enough time
-  start_ms += 286;
 
   uint8_t note_on[3] = { 0x90 | channel, 0x40, 100 };
   tud_midi_stream_write(cable_num, note_on, 3);
