@@ -7,7 +7,7 @@ dispatcher = Dispatcher()
 def input_handle(address, *args):
     print(f"{address}: {args}")
 
-addresses = ['/button', '/bins']
+addresses = ['/button', '/bins', '/depths']
 
 for address in addresses:
     dispatcher.map(address, input_handle)

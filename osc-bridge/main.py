@@ -23,7 +23,10 @@ N_BINS = 8
 
 class Sandbox:
     def __init__(self):
-        self._osc_client = udp_client.SimpleUDPClient("127.0.0.1", 7400)
+        self._osc_clients = [
+            udp_client.SimpleUDPClient("127.0.0.1", 7400),
+            udp_client.SimpleUDPClient("127.0.0.1", 7401)
+        ]
 
     def _camera_loop(self):
         print("camera loop starts!")
@@ -55,8 +58,9 @@ class Sandbox:
                     idx = int((RES_WIDTH / N_BINS) * b + (RES_WIDTH / N_BINS) / 2)
                     bins.append(depths[idx])
 
-                self._osc_client.send_message('/depths', depths)
-                self._osc_client.send_message('/bins', bins)
+                for i in self._osc_clients:
+                    i.send_message('/depths', depths)
+                    i.send_message('/bins', bins)
 
         except Exception as e:
             print(e)
@@ -81,7 +85,6 @@ class Sandbox:
         midi_input = pygame.midi.Input(l[0])
         
         try: 
-            
             while True:
                 if midi_input.poll():
                     event = midi_input.read(num_events=256)[0]
@@ -90,7 +93,10 @@ class Sandbox:
                     note_number = data[1]
                     velocity = data[2]
                     if note_number == 64 and velocity > 0:
-                        self._osc_client.send_message('/button', True)
+
+                        for i in self._osc_clients:
+                            i.send_message('/button', True)
+                
                 time.sleep(0.01)
 
         except KeyboardInterrupt as err:

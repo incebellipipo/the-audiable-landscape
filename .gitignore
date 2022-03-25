@@ -478,4 +478,6 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 .vscode
+
+*.autosave
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,windows,linux,macos,cmake,c++,clion,pycharm
