@@ -16,10 +16,14 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import pygame.midi
 import time
+import statistics
 
 RES_WIDTH=848
 RES_HEIGHT=480
 N_BINS = 8
+MAX_RANGE = 0.686 # In meters
+MIN_RANGE = 0.35 # In meters
+VERTICAL_STEP_SIZE = 10
 
 class Sandbox:
     def __init__(self):
@@ -27,6 +31,13 @@ class Sandbox:
             udp_client.SimpleUDPClient("127.0.0.1", 7400),
             udp_client.SimpleUDPClient("127.0.0.1", 7401)
         ]
+
+        self._vertical_position = RES_HEIGHT / 2
+        self._vertical_position_operator = VERTICAL_STEP_SIZE # 1 going up, -1 going down
+
+        self._depth = None
+
+        self._button_triggered = False
 
     def _camera_loop(self):
         print("camera loop starts!")
@@ -48,19 +59,50 @@ class Sandbox:
                 depth = frames.get_depth_frame()
                 if not depth: 
                     continue
-                
+
                 depths = []
+                thresholded_depths = []
                 for x in range(RES_WIDTH):
-                    depths.append(depth.get_distance(x, int(RES_HEIGHT / 2.0)))
+                    d = statistics.median([
+                        depth.get_distance(x, int(RES_HEIGHT / 2.0) - 1),
+                        depth.get_distance(x, int(RES_HEIGHT / 2.0)),
+                        depth.get_distance(x, int(RES_HEIGHT / 2.0) + 1)
+                    ])
+
+                    depths.append(d)
+                    if d > MAX_RANGE:
+                        thresholded_depths.append(MAX_RANGE)
+                    elif d < MIN_RANGE:
+                        thresholded_depths.append(MIN_RANGE)
+                    else:
+                        thresholded_depths.append(d)
 
                 bins = []
                 for b in range(N_BINS):
                     idx = int((RES_WIDTH / N_BINS) * b + (RES_WIDTH / N_BINS) / 2)
-                    bins.append(depths[idx])
+                    bins.append(thresholded_depths[idx])
 
                 for i in self._osc_clients:
                     i.send_message('/depths', depths)
+                    i.send_message('/thresholded_depths', depths)
                     i.send_message('/bins', bins)
+
+
+                if self._vertical_position >= RES_HEIGHT - abs(VERTICAL_STEP_SIZE):
+                    self._vertical_position_operator = -1 * abs(VERTICAL_STEP_SIZE) 
+                elif self._vertical_position <= abs(VERTICAL_STEP_SIZE):
+                    self._vertical_position_operator = 1 * abs(VERTICAL_STEP_SIZE) 
+                self._vertical_position += self._vertical_position_operator
+
+                vertical_depths = [self._vertical_position]
+                for x in range(RES_WIDTH):
+                    d = depth.get_distance(x, int(self._vertical_position))
+                    vertical_depths.append(d)
+
+                for i in self._osc_clients:
+                    i.send_message('/vertical_depths', vertical_depths)
+                
+
 
         except Exception as e:
             print(e)
@@ -93,10 +135,10 @@ class Sandbox:
                     note_number = data[1]
                     velocity = data[2]
                     if note_number == 64 and velocity > 0:
-
+                        self._button_triggered = True
                         for i in self._osc_clients:
                             i.send_message('/button', True)
-                
+
                 time.sleep(0.01)
 
         except KeyboardInterrupt as err:
